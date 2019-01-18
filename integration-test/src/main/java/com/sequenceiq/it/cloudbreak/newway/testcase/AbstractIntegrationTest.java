@@ -30,8 +30,10 @@ import com.sequenceiq.it.cloudbreak.newway.actor.Actor;
 import com.sequenceiq.it.cloudbreak.newway.context.PurgeGarbageService;
 import com.sequenceiq.it.cloudbreak.newway.context.TestContext;
 import com.sequenceiq.it.config.IntegrationTestConfiguration;
+import com.sequenceiq.it.config.StructuredEventKafkaListener;
 
-@ContextConfiguration(classes = {IntegrationTestConfiguration.class}, initializers = ConfigFileApplicationContextInitializer.class)
+@ContextConfiguration(classes = {IntegrationTestConfiguration.class, StructuredEventKafkaListener.class},
+        initializers = ConfigFileApplicationContextInitializer.class)
 public abstract class AbstractIntegrationTest extends AbstractTestNGSpringContextTests {
 
     public static final Map<String, String> STACK_DELETED = Map.of("status", "DELETE_COMPLETED");
@@ -39,6 +41,24 @@ public abstract class AbstractIntegrationTest extends AbstractTestNGSpringContex
     protected static final Map<String, String> STACK_AVAILABLE = Map.of("status", "AVAILABLE", "clusterStatus", "AVAILABLE");
 
     protected static final Map<String, String> STACK_FAILED = Map.of("status", "AVAILABLE", "clusterStatus", "CREATE_FAILED");
+
+    protected static final String INIT_STATE = "INIT_STATE";
+
+    protected static final String START_PROVISIONING_STATE = "START_PROVISIONING_STATE";
+
+    protected static final String STACK_CREATION_FINISHED_STATE = "STACK_CREATION_FINISHED_STATE";
+
+    protected static final String STARTING_AMBARI_SERVICES_STATE = "STARTING_AMBARI_SERVICES_STATE";
+
+    protected static final String CLUSTER_CREATION_FINISHED_STATE = "CLUSTER_CREATION_FINISHED_STATE";
+
+    protected static final String CLUSTER_CREATION_FAILED_STATE = "CLUSTER_CREATION_FAILED_STATE";
+
+    protected static final String DOWNSCALE_FINISHED_STATE = "DOWNSCALE_FINISHED_STATE";
+
+    protected static final String FINALIZE_UPSCALE_STATE = "FINALIZE_UPSCALE_STATE";
+
+    protected static final String DOWNSCALE_FAILED_STATE = "CLUSTER_DOWNSCALE_FAILED_STATE";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractIntegrationTest.class);
 

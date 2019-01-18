@@ -27,7 +27,11 @@ public class StackCreationTest extends AbstractIntegrationTest {
     public void testCreateNewRegularCluster(TestContext testContext) {
         testContext.given(StackEntity.class)
                 .when(Stack.postV2())
-                .await(STACK_AVAILABLE)
+                .awaitEvent(START_PROVISIONING_STATE)
+                .awaitEvent(STACK_CREATION_FINISHED_STATE)
+                .awaitEvent(INIT_STATE)
+                .awaitEvent(STARTING_AMBARI_SERVICES_STATE)
+                .awaitEvent(CLUSTER_CREATION_FINISHED_STATE)
                 .validate();
     }
 

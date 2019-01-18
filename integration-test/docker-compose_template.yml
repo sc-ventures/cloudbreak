@@ -1,7 +1,9 @@
 test:
   dns:
+  hostname: test
   ports:
     - 2020:2020
+    - 3333:3333
     - 9400-9900:9400-9900
     - 7654:7654
   volumes:
@@ -19,6 +21,10 @@ test:
     - INTEGRATIONTEST_UAA_AUTOSCALE_CLIENTID
     - INTEGRATIONTEST_UAA_AUTOSCALE_CLIENTSECRET
     - CLOUDBREAK_URL=cloudbreak.service.consul:8080
+    - KAFKA_LISTENERS=PLAINTEXT://:3333
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://test.service.consul:3333
+    - KAFKA_ZOOKEEPER_CONNECT=test:2181
+    - EMBEDDED_KAFKA_HOST=test.service.consul:3333
     - SPRING_CONFIG_LOCATION=classpath:/application.yml,/it/it-application.yml
     - INTEGRATIONTEST_SUITEFILES
     - INTEGRATIONTEST_AWSCREDENTIAL_ROLEARN=${AWS_ROLE_ARN}

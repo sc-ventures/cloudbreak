@@ -5,6 +5,10 @@
         </encoder>
     </appender>
 
+    <logger name="kafka.request.logger" level="WARN"/>
+    <logger name="org.apache.kafka" level="WARN"/>
+    <logger name="org.apache.kafka.common.metrics" level="WARN"/>
+
     <timestamp key="date" datePattern="yyyyMMdd"/>
 
     <appender name="SUITE_BASED" class="ch.qos.logback.classic.sift.SiftingAppender">
@@ -27,5 +31,7 @@
         <appender-ref ref="STDOUT" />
         <appender-ref ref="SUITE_BASED" />
     </root>
+
+    <root level="INFO" />
 
 </configuration>

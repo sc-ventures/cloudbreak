@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
@@ -21,6 +22,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.util.StringUtils;
 
+import com.sequenceiq.it.EmbeddedKafkaOwn;
+import com.sequenceiq.it.StructuredEventAwaiter;
 import com.sequenceiq.it.cloudbreak.newway.CloudbreakClient;
 import com.sequenceiq.it.cloudbreak.newway.CloudbreakTest;
 import com.sequenceiq.it.cloudbreak.newway.Prototype;
@@ -64,6 +67,12 @@ public class TestContext implements ApplicationContextAware {
 
     @Inject
     private WaitUtil waitUtil;
+
+    @Inject
+    private EmbeddedKafkaOwn embeddedKafka;
+
+    @Inject
+    private StructuredEventAwaiter eventWaitUtil;
 
     @Inject
     private TestParameter testParameter;
@@ -348,6 +357,24 @@ public class TestContext implements ApplicationContextAware {
 
     public <T extends CloudbreakEntity> T await(T entity, Map<String, String> desiredStatuses) {
         return await(entity, desiredStatuses, emptyRunningParameter());
+    }
+
+    public <T extends CloudbreakEntity> T awaitEvent(T entity, String desiredStatus, RunningParameter runningParameter) {
+        try {
+            eventWaitUtil.addClusterAwaiter(entity.getName(), desiredStatus);
+            LOGGER.info("Using event awaiter for cluster {} for status [{}] with latch count {}",
+                    entity.getName(), desiredStatus, eventWaitUtil.getLatch(entity.getName()).getCount());
+            boolean result = eventWaitUtil.getLatch(entity.getName()).await(70, TimeUnit.SECONDS);
+            if (!result) {
+                throw new RuntimeException("Event timeout happened, waited for " + desiredStatus);
+            }
+            if (!"DELETE_COMPLETED".equals(desiredStatus)) {
+                entity.refresh(this, getCloudbreakClient(getWho(runningParameter)));
+            }
+        } catch (InterruptedException e) {
+            exceptionMap.put("awaitEvent " + entity + " for desired statuses interrupted " + desiredStatus, e);
+        }
+        return entity;
     }
 
     public <T extends CloudbreakEntity> T await(T entity, Map<String, String> desiredStatuses, RunningParameter runningParameter) {

@@ -177,6 +177,14 @@ public abstract class AbstractCloudbreakEntity<R, S, T extends CloudbreakEntity>
         return await(statuses, emptyRunningParameter());
     }
 
+    public T awaitEvent(String event) {
+        return awaitEvent(event, emptyRunningParameter());
+    }
+
+    public T awaitEvent(String status, RunningParameter runningParameter) {
+        return testContext.awaitEvent((T) this, status, runningParameter);
+    }
+
     public T await(Map<String, String> statuses, RunningParameter runningParameter) {
         return testContext.await((T) this, statuses, runningParameter);
     }

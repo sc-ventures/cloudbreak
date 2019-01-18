@@ -30,7 +30,7 @@ public class WorkspaceTest extends AbstractIntegrationTest {
 
         testContext.given(StackEntity.class)
                 .when(Stack.postV2())
-                .await(STACK_AVAILABLE);
+                .awaitEvent(CLUSTER_CREATION_FINISHED_STATE);
     }
 
     @AfterMethod(alwaysRun = true)

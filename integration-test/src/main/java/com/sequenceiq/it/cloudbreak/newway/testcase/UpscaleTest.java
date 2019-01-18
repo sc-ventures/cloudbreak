@@ -43,15 +43,15 @@ public class UpscaleTest extends AbstractIntegrationTest {
     }
 
     @Test(dataProvider = "testContext")
-    public void testStackScaling(TestContext testContext) throws Exception {
+    public void testStackScaling(TestContext testContext) {
         // GIVEN
         testContext.given(Stack.class)
                 .when(new StackPostAction())
-                .await(STACK_AVAILABLE)
+                .awaitEvent(CLUSTER_CREATION_FINISHED_STATE)
                 .when(StackScalePostAction.valid().withDesiredCount(15))
-                .await(STACK_AVAILABLE)
+                .awaitEvent(FINALIZE_UPSCALE_STATE)
                 .when(StackScalePostAction.valid().withDesiredCount(6))
-                .await(STACK_AVAILABLE)
+                .awaitEvent("DOWNSCALE_FINISHED_STATE")
                 .validate();
     }
 
@@ -63,9 +63,9 @@ public class UpscaleTest extends AbstractIntegrationTest {
         int addedNodes = desiredWorkedCount - originalWorkedCount;
         testContext.given(StackEntity.class).withName(clusterName).withGatewayPort(testContext.getSparkServer().getPort())
                 .when(Stack.postV2())
-                .await(STACK_AVAILABLE)
+                .awaitEvent(CLUSTER_CREATION_FINISHED_STATE)
                 .when(StackScalePostAction.valid().withDesiredCount(desiredWorkedCount))
-                .await(StackEntity.class, STACK_AVAILABLE)
+                .awaitEvent(FINALIZE_UPSCALE_STATE)
                 .then(MockVerification.verify(HttpMethod.POST, "/api/v1/blueprints/"))
                 .then(MockVerification.verify(HttpMethod.POST, MOCK_ROOT + "/cloud_instance_statuses").exactTimes(1))
                 .then(MockVerification.verify(HttpMethod.POST, MOCK_ROOT + "/cloud_metadata_statuses")
@@ -81,7 +81,7 @@ public class UpscaleTest extends AbstractIntegrationTest {
                 .then(MockVerification.verify(HttpMethod.POST, SALT_BOOT_ROOT + "/hostname/distribute")
                         .bodyRegexp("^.*\\[([\"0-9\\.]+([,]{0,1})){" + addedNodes + "}\\].*").exactTimes(2))
                 .then(MockVerification.verify(HttpMethod.GET, AMBARI_API_ROOT + "/hosts").atLeast(1))
-                .then(MockVerification.verify(HttpMethod.GET, AMBARI_API_ROOT + "/clusters").exactTimes(22))
+                .then(MockVerification.verify(HttpMethod.GET, AMBARI_API_ROOT + "/clusters").atLeast(22))
                 .then(MockVerification.verify(HttpMethod.GET, AMBARI_API_ROOT + "/clusters/" + clusterName).atLeast(1))
                 .validate();
     }
@@ -91,7 +91,7 @@ public class UpscaleTest extends AbstractIntegrationTest {
         mockAmbariBlueprintFail(testContext);
         testContext.given(Stack.class)
                 .when(Stack.postV2())
-                .await(STACK_FAILED)
+                .awaitEvent(CLUSTER_CREATION_FAILED_STATE)
                 .then(MockVerification.verify(HttpMethod.POST, "/api/v1/blueprints/").atLeast(1))
                 .validate();
     }

@@ -25,6 +25,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.core.io.InputStreamSource;
 import org.springframework.core.io.Resource;
 import org.springframework.util.CollectionUtils;
@@ -38,10 +39,15 @@ import org.uncommons.reportng.JUnitXMLReporter;
 import com.sequenceiq.it.cloudbreak.config.ITProps;
 import com.sequenceiq.it.cloudbreak.newway.listener.ReportListener;
 import com.sequenceiq.it.cloudbreak.newway.logsearch.CustomHTMLReporter;
+import com.sequenceiq.it.config.StructuredEventKafkaListener;
 
 @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, DataSourceTransactionManagerAutoConfiguration.class,
         HibernateJpaAutoConfiguration.class})
-@ComponentScan(basePackages = "com.sequenceiq.it")
+@ComponentScan(basePackages = "com.sequenceiq.it",
+        excludeFilters = @ComponentScan.Filter(
+        type = FilterType.ASSIGNABLE_TYPE,
+        value = StructuredEventKafkaListener.class)
+)
 @EnableConfigurationProperties(ITProps.class)
 public class IntegrationTestApp implements CommandLineRunner {
     private static final Logger LOG = LoggerFactory.getLogger(IntegrationTestApp.class);
