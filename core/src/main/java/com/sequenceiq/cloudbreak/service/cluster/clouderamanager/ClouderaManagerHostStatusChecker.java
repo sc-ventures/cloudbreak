@@ -13,7 +13,7 @@ import com.cloudera.api.swagger.client.ApiException;
 import com.cloudera.api.swagger.model.ApiHost;
 import com.cloudera.api.swagger.model.ApiHostList;
 import com.sequenceiq.cloudbreak.domain.stack.instance.InstanceMetaData;
-import com.sequenceiq.cloudbreak.service.ClusterBasedStatusCheckerTask;
+import com.sequenceiq.cloudbreak.cluster.service.ClusterBasedStatusCheckerTask;
 
 @Service
 public class ClouderaManagerHostStatusChecker extends ClusterBasedStatusCheckerTask<ClouderaManagerPollerObject> {

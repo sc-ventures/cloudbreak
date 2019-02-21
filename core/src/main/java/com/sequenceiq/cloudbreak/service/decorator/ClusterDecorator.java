@@ -18,6 +18,7 @@ import com.google.common.base.Strings;
 import com.sequenceiq.cloudbreak.api.endpoint.v4.ExposedService;
 import com.sequenceiq.cloudbreak.api.endpoint.v4.stacks.request.cluster.ClusterV4Request;
 import com.sequenceiq.cloudbreak.blueprint.validation.BlueprintValidator;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterApi;
 import com.sequenceiq.cloudbreak.controller.exception.BadRequestException;
 import com.sequenceiq.cloudbreak.domain.Blueprint;
 import com.sequenceiq.cloudbreak.domain.LdapConfig;
@@ -98,9 +99,9 @@ public class ClusterDecorator {
 
     private void prepareClusterManagerVariant(Cluster cluster) {
         if (blueprintService.isAmbariBlueprint(cluster.getBlueprint())) {
-            cluster.setVariant("AMBARI");
+            cluster.setVariant(ClusterApi.AMBARI);
         } else {
-            cluster.setVariant("CLOUDERA_MANAGER");
+            cluster.setVariant(ClusterApi.CLOUDERA_MANAGER);
         }
     }
 

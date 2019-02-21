@@ -43,7 +43,7 @@ import com.sequenceiq.cloudbreak.domain.stack.cluster.host.HostMetadata;
 import com.sequenceiq.cloudbreak.repository.cluster.ClusterRepository;
 import com.sequenceiq.cloudbreak.repository.InstanceMetaDataRepository;
 import com.sequenceiq.cloudbreak.service.TlsSecurityService;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariClientProvider;
+import com.sequenceiq.cloudbreak.ambari.AmbariClientProvider;
 import com.sequenceiq.cloudbreak.service.hostgroup.HostGroupService;
 import com.sequenceiq.cloudbreak.service.stack.StackService;
 
@@ -135,18 +135,6 @@ public class AmbariClusterHostServiceTypeTest {
         thrown.expectMessage("Cannot stop a cluster '1'. Reason: Spot instances cannot be stopped.");
 
         underTest.updateStatus(1L, StatusRequest.STOPPED);
-    }
-
-    @Test
-    public void testRetrieveClusterJsonWhenClusterJsonIsNull() throws HttpResponseException {
-        // GIVEN
-        doReturn(ambariClient).when(ambariClientProvider).getAmbariClient(any(HttpClientConfig.class), nullable(Integer.class), any(Cluster.class));
-        given(ambariClient.getClusterAsJson()).willReturn(null);
-
-        thrown.expect(BadRequestException.class);
-        thrown.expectMessage("Cluster response coming from Ambari server was null. [Ambari Server IP: '123.12.3.4']");
-        // WHEN
-        underTest.getClusterJson("123.12.3.4", 1L);
     }
 
     @Test

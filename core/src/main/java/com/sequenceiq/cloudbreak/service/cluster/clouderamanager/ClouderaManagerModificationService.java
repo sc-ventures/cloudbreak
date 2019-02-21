@@ -1,12 +1,12 @@
 package com.sequenceiq.cloudbreak.service.cluster.clouderamanager;
 
 import static com.sequenceiq.cloudbreak.api.endpoint.v4.common.Status.UPDATE_IN_PROGRESS;
-import static com.sequenceiq.cloudbreak.service.PollingResult.isExited;
-import static com.sequenceiq.cloudbreak.service.PollingResult.isTimeout;
-import static com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STARTED;
-import static com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STARTING;
-import static com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STOPPED;
-import static com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STOPPING;
+import static com.sequenceiq.cloudbreak.polling.PollingResult.isExited;
+import static com.sequenceiq.cloudbreak.polling.PollingResult.isTimeout;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STARTED;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STARTING;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STOPPED;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STOPPING;
 
 import java.util.Collection;
 
@@ -26,11 +26,11 @@ import com.sequenceiq.cloudbreak.domain.stack.cluster.Cluster;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.host.HostGroup;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.host.HostMetadata;
 import com.sequenceiq.cloudbreak.service.CloudbreakException;
-import com.sequenceiq.cloudbreak.service.PollingResult;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariOperationFailedException;
-import com.sequenceiq.cloudbreak.service.cluster.api.ClusterModificationService;
-import com.sequenceiq.cloudbreak.service.events.CloudbreakEventService;
-import com.sequenceiq.cloudbreak.service.messages.CloudbreakMessagesService;
+import com.sequenceiq.cloudbreak.polling.PollingResult;
+import com.sequenceiq.cloudbreak.ambari.AmbariOperationFailedException;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterModificationService;
+import com.sequenceiq.cloudbreak.service.event.CloudbreakEventService;
+import com.sequenceiq.cloudbreak.message.CloudbreakMessagesService;
 
 @Service
 public class ClouderaManagerModificationService implements ClusterModificationService {

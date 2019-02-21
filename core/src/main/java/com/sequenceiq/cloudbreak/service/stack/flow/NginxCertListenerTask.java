@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.sequenceiq.cloudbreak.service.StackBasedStatusCheckerTask;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariOperationFailedException;
+import com.sequenceiq.cloudbreak.ambari.AmbariOperationFailedException;
 
 @Component
 public class NginxCertListenerTask extends StackBasedStatusCheckerTask<NginxPollerObject> {

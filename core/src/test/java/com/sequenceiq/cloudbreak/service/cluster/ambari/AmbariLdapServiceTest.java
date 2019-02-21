@@ -20,6 +20,9 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import com.sequenceiq.ambari.client.AmbariClient;
+import com.sequenceiq.cloudbreak.ambari.AmbariClientFactory;
+import com.sequenceiq.cloudbreak.ambari.AmbariLdapService;
+import com.sequenceiq.cloudbreak.ambari.AmbariRepositoryVersionService;
 import com.sequenceiq.cloudbreak.api.endpoint.v4.ldaps.DirectoryType;
 import com.sequenceiq.cloudbreak.cloud.model.AmbariRepo;
 import com.sequenceiq.cloudbreak.domain.LdapConfig;

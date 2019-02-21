@@ -17,6 +17,8 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import com.sequenceiq.ambari.client.AmbariClient;
+import com.sequenceiq.cloudbreak.ambari.AmbariServiceException;
+import com.sequenceiq.cloudbreak.ambari.AmbariSmartSenseCapturer;
 import com.sequenceiq.cloudbreak.blueprint.SmartsenseConfigurationLocator;
 import com.sequenceiq.cloudbreak.domain.SmartSenseSubscription;
 import com.sequenceiq.cloudbreak.service.smartsense.SmartSenseSubscriptionService;

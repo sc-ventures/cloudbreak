@@ -18,8 +18,10 @@ import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import com.sequenceiq.ambari.client.AmbariClient;
+import com.sequenceiq.cloudbreak.ambari.AmbariClusterStatusFactory;
 import com.sequenceiq.cloudbreak.api.endpoint.v4.common.Status;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariAdapter;
+import com.sequenceiq.cloudbreak.cluster.status.ClusterStatus;
+import com.sequenceiq.cloudbreak.ambari.AmbariAdapter;
 
 @RunWith(MockitoJUnitRunner.class)
 public class AmbariClusterStatusFactoryTest {

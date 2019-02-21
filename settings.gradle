@@ -25,6 +25,8 @@ include 'yarn-service'
 include 'template-manager-core'
 include 'template-manager-blueprint'
 include 'template-manager-recipe'
+include 'cluster-api'
+include 'cluster-ambari'
 
 rootProject.name = 'cloudbreak'
 include 'mock-caas'

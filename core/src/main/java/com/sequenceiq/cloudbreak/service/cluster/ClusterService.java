@@ -42,7 +42,6 @@ import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.sequenceiq.ambari.client.AmbariClient;
 import com.sequenceiq.cloudbreak.api.endpoint.v4.common.DatabaseVendor;
 import com.sequenceiq.cloudbreak.api.endpoint.v4.common.Status;
 import com.sequenceiq.cloudbreak.api.endpoint.v4.database.base.DatabaseType;
@@ -64,6 +63,8 @@ import com.sequenceiq.cloudbreak.cloud.model.VolumeSetAttributes;
 import com.sequenceiq.cloudbreak.cloud.model.component.ManagementPackComponent;
 import com.sequenceiq.cloudbreak.cloud.model.component.StackRepoDetails;
 import com.sequenceiq.cloudbreak.cloud.store.InMemoryStateStore;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterApi;
+import com.sequenceiq.cloudbreak.cluster.util.ResourceAttributeUtil;
 import com.sequenceiq.cloudbreak.common.model.OrchestratorType;
 import com.sequenceiq.cloudbreak.common.type.APIResourceType;
 import com.sequenceiq.cloudbreak.common.type.ComponentType;
@@ -95,6 +96,7 @@ import com.sequenceiq.cloudbreak.domain.stack.instance.InstanceGroup;
 import com.sequenceiq.cloudbreak.domain.stack.instance.InstanceMetaData;
 import com.sequenceiq.cloudbreak.domain.workspace.User;
 import com.sequenceiq.cloudbreak.domain.workspace.Workspace;
+import com.sequenceiq.cloudbreak.message.CloudbreakMessagesService;
 import com.sequenceiq.cloudbreak.repository.ConstraintRepository;
 import com.sequenceiq.cloudbreak.repository.GatewayRepository;
 import com.sequenceiq.cloudbreak.repository.HostMetadataRepository;
@@ -111,20 +113,13 @@ import com.sequenceiq.cloudbreak.service.TransactionService;
 import com.sequenceiq.cloudbreak.service.TransactionService.TransactionExecutionException;
 import com.sequenceiq.cloudbreak.service.TransactionService.TransactionRuntimeExecutionException;
 import com.sequenceiq.cloudbreak.service.blueprint.BlueprintService;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariClientProvider;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariRepositoryVersionService;
 import com.sequenceiq.cloudbreak.service.cluster.flow.ClusterTerminationService;
-import com.sequenceiq.cloudbreak.service.events.CloudbreakEventService;
+import com.sequenceiq.cloudbreak.service.event.CloudbreakEventService;
 import com.sequenceiq.cloudbreak.service.filesystem.FileSystemConfigService;
 import com.sequenceiq.cloudbreak.service.hostgroup.HostGroupService;
-import com.sequenceiq.cloudbreak.service.messages.CloudbreakMessagesService;
 import com.sequenceiq.cloudbreak.service.rdsconfig.RdsConfigService;
 import com.sequenceiq.cloudbreak.service.stack.StackService;
-import com.sequenceiq.cloudbreak.util.AmbariClientExceptionUtil;
 import com.sequenceiq.cloudbreak.util.JsonUtil;
-import com.sequenceiq.cloudbreak.util.StackUtil;
-
-import groovyx.net.http.HttpResponseException;
 
 @Service
 public class ClusterService {
@@ -161,9 +156,6 @@ public class ClusterService {
 
     @Inject
     private InstanceMetaDataRepository instanceMetadataRepository;
-
-    @Inject
-    private AmbariClientProvider ambariClientProvider;
 
     @Inject
     private ReactorFlowManager flowManager;
@@ -214,13 +206,13 @@ public class ClusterService {
     private BlueprintUtils blueprintUtils;
 
     @Inject
-    private AmbariRepositoryVersionService ambariRepositoryVersionService;
-
-    @Inject
     private ResourceRepository resourceRepository;
 
     @Inject
-    private StackUtil stackUtil;
+    private ResourceAttributeUtil resourceAttributeUtil;
+
+    @Inject
+    private ClusterApiConnectors clusterApiConnectors;
 
     public Cluster create(Stack stack, Cluster cluster, List<ClusterComponent> components, User user) throws TransactionExecutionException {
         LOGGER.debug("Cluster requested [BlueprintId: {}]", cluster.getBlueprint().getId());
@@ -421,54 +413,15 @@ public class ClusterService {
         }
     }
 
-    public String getClusterJson(String ambariIp, Long stackId) {
-        try {
-            AmbariClient ambariClient = getAmbariClient(stackId);
-            String clusterJson = ambariClient.getClusterAsJson();
-            if (clusterJson == null) {
-                throw new BadRequestException(String.format("Cluster response coming from Ambari server was null. [Ambari Server IP: '%s']", ambariIp));
-            }
-            return clusterJson;
-        } catch (HttpResponseException e) {
-            if ("Not Found".equals(e.getMessage())) {
-                throw new NotFoundException("Ambari validation not found.", e);
-            } else {
-                String errorMessage = AmbariClientExceptionUtil.getErrorMessage(e);
-                throw new CloudbreakServiceException("Could not get Cluster from Ambari as JSON: " + errorMessage, e);
-            }
-        }
-    }
-
     public String getStackRepositoryJson(Long stackId) {
-        try {
-            AmbariClient ambariClient = getAmbariClient(stackId);
-            Stack stack = stackService.getById(stackId);
-            Cluster cluster = stack.getCluster();
-            if (cluster == null) {
-                throw new BadRequestException(String.format("There is no cluster installed on stack '%s'.", stack.getName()));
-            }
-            StackRepoDetails repoDetails = clusterComponentConfigProvider.getStackRepoDetails(cluster.getId());
-            String stackRepoId = repoDetails.getStack().get(StackRepoDetails.REPO_ID_TAG);
-            String osType = ambariRepositoryVersionService.getOsTypeForStackRepoDetails(repoDetails);
-            if ("".equals(osType)) {
-                LOGGER.debug(String.format("The stored HDP repo details (%s) do not contain OS information for stack '%s'.", repoDetails, stack.getName()));
-                return null;
-            }
-
-            String stackRepositoryJson = ambariClient.getLatestStackRepositoryAsJson(cluster.getName(), osType, stackRepoId);
-            if (stackRepositoryJson == null) {
-                throw new BadRequestException(String.format("Stack Repository response coming from Ambari server was null "
-                        + "for cluster '%s' and repo url '%s'.", cluster.getName(), stackRepoId));
-            }
-            return stackRepositoryJson;
-        } catch (HttpResponseException e) {
-            if ("Not Found".equals(e.getMessage())) {
-                throw new NotFoundException("Ambari validation not found.", e);
-            } else {
-                String errorMessage = AmbariClientExceptionUtil.getErrorMessage(e);
-                throw new CloudbreakServiceException("Could not get Stack Repository from Ambari as JSON: " + errorMessage, e);
-            }
+        Stack stack = stackService.getById(stackId);
+        Cluster cluster = stack.getCluster();
+        if (cluster == null) {
+            throw new BadRequestException(String.format("There is no cluster installed on stack '%s'.", stack.getName()));
         }
+        StackRepoDetails repoDetails = clusterComponentConfigProvider.getStackRepoDetails(cluster.getId());
+        String stackRepoId = repoDetails.getStack().get(StackRepoDetails.REPO_ID_TAG);
+        return clusterApiConnectors.getConnector(stack).clusterModificationService().getStackRepositoryJson(repoDetails, stackRepoId);
     }
 
     public void updateHosts(Long stackId, HostGroupAdjustmentV4Request hostGroupAdjustment) {
@@ -691,10 +644,10 @@ public class ClusterService {
     }
 
     private Resource updateDeleteVolumesFlag(boolean deleteVolumes, Resource volumeSet) {
-        Optional<VolumeSetAttributes> attributes = stackUtil.getTypedAttributes(volumeSet, VolumeSetAttributes.class);
+        Optional<VolumeSetAttributes> attributes = resourceAttributeUtil.getTypedAttributes(volumeSet, VolumeSetAttributes.class);
         attributes.ifPresent(volumeSetAttributes -> {
             volumeSetAttributes.setDeleteOnTermination(deleteVolumes);
-            stackUtil.setTypedAttributes(volumeSet, volumeSetAttributes);
+            resourceAttributeUtil.setTypedAttributes(volumeSet, volumeSetAttributes);
         });
         return volumeSet;
     }
@@ -838,15 +791,15 @@ public class ClusterService {
 
     public Cluster updateClusterMetadata(Long stackId) {
         Stack stack = stackService.getById(stackId);
-        AmbariClient ambariClient = getAmbariClient(stack);
+        ClusterApi connector = clusterApiConnectors.getConnector(stack);
+        HttpClientConfig httpClientConfig = tlsSecurityService.buildTLSClientConfigForPrimaryGateway(stack.getId(), stack.getAmbariIp());
+        Map<String, HostMetadataState> hostStatuses = connector.clusterStatusService().getHostStatuses();
         Set<HostMetadata> hosts = hostMetadataRepository.findHostsInCluster(stack.getCluster().getId());
-        Map<String, String> hostStatuses = ambariClient.getHostStatuses();
         try {
             return transactionService.required(() -> {
                 for (HostMetadata host : hosts) {
                     if (hostStatuses.containsKey(host.getHostName())) {
-                        HostMetadataState newState = HostMetadataState.HEALTHY.name().equals(hostStatuses.get(host.getHostName()))
-                                ? HostMetadataState.HEALTHY : HostMetadataState.UNHEALTHY;
+                        HostMetadataState newState = hostStatuses.get(host.getHostName());
                         boolean stateChanged = updateHostMetadataByHostState(stack, host.getHostName(), newState);
                         if (stateChanged && HostMetadataState.HEALTHY == newState) {
                             updateInstanceMetadataStateToRegistered(stackId, host);
@@ -1059,8 +1012,8 @@ public class ClusterService {
         try {
             JsonNode root = JsonUtil.readTree(blueprintText);
             String blueprintName = root.path("Blueprints").path("blueprint_name").asText();
-            AmbariClient ambariClient = getAmbariClient(stack);
-            Map<String, String> categories = ambariClient.getComponentsCategory(blueprintName, hostGroup);
+            Map<String, String> categories =
+                    clusterApiConnectors.getConnector(stack).clusterModificationService().getComponentsByCategory(blueprintName, hostGroup);
             for (Entry<String, String> entry : categories.entrySet()) {
                 if (entry.getValue().equalsIgnoreCase(MASTER_CATEGORY) && !blueprintUtils.isSharedServiceReadyBlueprint(blueprint)) {
                     throw new BadRequestException(
@@ -1129,29 +1082,9 @@ public class ClusterService {
         return cluster;
     }
 
-    /*public ConfigsResponse retrieveOutputs(Long stackId) {
-        Stack stack = stackService.getById(stackId);
-        Stack datalake = stackService.getById(stack.getDatalakeId());
-        return sharedServiceConfigProvider.retrieveOutputs(datalake, stack.getCluster().getBlueprint(), stack.getName());
-    }*/
-
     public Map<String, String> getHostStatuses(Long stackId) {
-        AmbariClient ambariClient = getAmbariClient(stackId);
-        return ambariClient.getHostStatuses();
-    }
-
-    private AmbariClient getAmbariClient(Long stackId) {
         Stack stack = stackService.getByIdWithListsInTransaction(stackId);
-        return getAmbariClient(stack);
-    }
-
-    private AmbariClient getAmbariClient(Stack stack) {
-        if (stack.getAmbariIp() == null) {
-            throw new NotFoundException(String.format("Ambari server is not available for the stack.[id: %s]", stack.getId()));
-        }
-        HttpClientConfig httpClientConfig = tlsSecurityService.buildTLSClientConfigForPrimaryGateway(stack.getId(), stack.getAmbariIp());
-        AmbariClient ambariClient = ambariClientProvider.getAmbariClient(httpClientConfig, stack.getGatewayPort(), stack.getCluster());
-        return ambariClient;
+        return clusterApiConnectors.getConnector(stack).clusterStatusService().getHostStatusesRaw();
     }
 
     public Set<Cluster> findByBlueprint(Blueprint blueprint) {

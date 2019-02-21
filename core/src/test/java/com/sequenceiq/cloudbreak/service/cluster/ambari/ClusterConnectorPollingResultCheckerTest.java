@@ -8,9 +8,9 @@ import org.mockito.InjectMocks;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import com.sequenceiq.cloudbreak.cloud.scheduler.CancellationException;
-import com.sequenceiq.cloudbreak.core.ClusterException;
-import com.sequenceiq.cloudbreak.service.PollingResult;
-import com.sequenceiq.cloudbreak.service.cluster.ClusterConnectorPollingResultChecker;
+import com.sequenceiq.cloudbreak.cluster.service.ClusterException;
+import com.sequenceiq.cloudbreak.polling.PollingResult;
+import com.sequenceiq.cloudbreak.cluster.service.ClusterConnectorPollingResultChecker;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ClusterConnectorPollingResultCheckerTest {

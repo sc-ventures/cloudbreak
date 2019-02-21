@@ -20,6 +20,10 @@ import org.springframework.test.context.junit4.SpringRunner;
 import com.sequenceiq.ambari.client.AmbariClient;
 import com.sequenceiq.ambari.client.AmbariConnectionException;
 import com.sequenceiq.cloudbreak.TestUtil;
+import com.sequenceiq.cloudbreak.ambari.AmbariClientFactory;
+import com.sequenceiq.cloudbreak.ambari.AmbariOperationFailedException;
+import com.sequenceiq.cloudbreak.ambari.AmbariServiceException;
+import com.sequenceiq.cloudbreak.ambari.AmbariUserHandler;
 import com.sequenceiq.cloudbreak.domain.stack.Stack;
 import com.sequenceiq.cloudbreak.service.CloudbreakException;
 

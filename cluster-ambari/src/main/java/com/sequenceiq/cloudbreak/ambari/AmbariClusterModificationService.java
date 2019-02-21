@@ -1,0 +1,247 @@
+package com.sequenceiq.cloudbreak.ambari;
+
+import static com.sequenceiq.cloudbreak.api.endpoint.v4.common.Status.UPDATE_IN_PROGRESS;
+import static com.sequenceiq.cloudbreak.polling.PollingResult.isExited;
+import static com.sequenceiq.cloudbreak.polling.PollingResult.isTimeout;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STARTING;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STOPPED;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_SERVICES_STOPPING;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_UPSCALE_FAILED;
+import static com.sequenceiq.cloudbreak.ambari.AmbariOperationType.STOP_AMBARI_PROGRESS_STATE;
+import static com.sequenceiq.cloudbreak.ambari.AmbariOperationType.UPSCALE_AMBARI_PROGRESS_STATE;
+import static com.sequenceiq.cloudbreak.ambari.HostGroupAssociationBuilder.FQDN;
+import static java.util.Collections.singletonMap;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import javax.annotation.PostConstruct;
+import javax.inject.Inject;
+
+import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Service;
+
+import com.sequenceiq.ambari.client.AmbariClient;
+import com.sequenceiq.ambari.client.AmbariConnectionException;
+import com.sequenceiq.cloudbreak.client.HttpClientConfig;
+import com.sequenceiq.cloudbreak.cloud.model.component.StackRepoDetails;
+import com.sequenceiq.cloudbreak.cloud.scheduler.CancellationException;
+import com.sequenceiq.cloudbreak.cluster.status.ClusterStatus;
+import com.sequenceiq.cloudbreak.domain.stack.Stack;
+import com.sequenceiq.cloudbreak.domain.stack.cluster.host.HostGroup;
+import com.sequenceiq.cloudbreak.domain.stack.cluster.host.HostMetadata;
+import com.sequenceiq.cloudbreak.domain.stack.instance.InstanceMetaData;
+import com.sequenceiq.cloudbreak.service.CloudbreakException;
+import com.sequenceiq.cloudbreak.service.CloudbreakServiceException;
+import com.sequenceiq.cloudbreak.polling.PollingResult;
+import com.sequenceiq.cloudbreak.cluster.service.ClusterConnectorPollingResultChecker;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterModificationService;
+import com.sequenceiq.cloudbreak.ambari.flow.AmbariOperationService;
+import com.sequenceiq.cloudbreak.service.event.CloudbreakEventService;
+import com.sequenceiq.cloudbreak.message.CloudbreakMessagesService;
+
+import groovyx.net.http.HttpResponseException;
+
+@Service
+@Scope("prototype")
+public class AmbariClusterModificationService implements ClusterModificationService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AmbariClusterModificationService.class);
+
+    private final Stack stack;
+
+    private final HttpClientConfig clientConfig;
+
+    @Inject
+    private AmbariClientFactory ambariClientFactory;
+
+    @Inject
+    private ClusterConnectorPollingResultChecker clusterConnectorPollingResultChecker;
+
+    @Inject
+    private AmbariOperationService ambariOperationService;
+
+    @Inject
+    private HostGroupAssociationBuilder hostGroupAssociationBuilder;
+
+    @Inject
+    private CloudbreakMessagesService cloudbreakMessagesService;
+
+    @Inject
+    private CloudbreakEventService eventService;
+
+    @Inject
+    private AmbariPollingServiceProvider ambariPollingServiceProvider;
+
+    @Inject
+    private AmbariClusterStatusFactory clusterStatusFactory;
+
+    @Inject
+    private AmbariRepositoryVersionService ambariRepositoryVersionService;
+
+    private AmbariClient ambariClient;
+
+    public AmbariClusterModificationService(Stack stack, HttpClientConfig clientConfig) {
+        this.stack = stack;
+        this.clientConfig = clientConfig;
+    }
+
+    @PostConstruct
+    public void initAmbariClient() {
+        ambariClient = ambariClientFactory.getAmbariClient(stack, stack.getCluster(), clientConfig);
+    }
+
+    @Override
+    public void upscaleCluster(HostGroup hostGroup, Collection<HostMetadata> hostMetadata, List<InstanceMetaData> metas) throws CloudbreakException {
+        List<String> upscaleHostNames = hostMetadata
+                .stream()
+                .map(HostMetadata::getHostName)
+                .collect(Collectors.toList())
+                .stream()
+                .filter(hostName -> !ambariClient.getClusterHosts().contains(hostName))
+                .collect(Collectors.toList());
+        if (!upscaleHostNames.isEmpty()) {
+            Pair<PollingResult, Exception> pollingResult = ambariOperationService.waitForOperations(
+                    stack,
+                    ambariClient,
+                    installServices(upscaleHostNames, stack, ambariClient, hostGroup, metas),
+                    UPSCALE_AMBARI_PROGRESS_STATE);
+            String message = pollingResult.getRight() == null
+                    ? cloudbreakMessagesService.getMessage(AMBARI_CLUSTER_UPSCALE_FAILED.code())
+                    : pollingResult.getRight().getMessage();
+            clusterConnectorPollingResultChecker.checkPollingResult(pollingResult.getLeft(), message);
+        }
+    }
+
+    @Override
+    public void stopCluster() throws CloudbreakException {
+        try {
+            boolean stopped = true;
+            Collection<Map<String, String>> values = ambariClient.getHostComponentsStates().values();
+            for (Map<String, String> value : values) {
+                for (String state : value.values()) {
+                    if (!"INSTALLED".equals(state)) {
+                        stopped = false;
+                    }
+                }
+            }
+            if (!stopped) {
+                LOGGER.debug("Stop all Hadoop services");
+                eventService
+                        .fireCloudbreakEvent(stack.getId(), UPDATE_IN_PROGRESS.name(),
+                                cloudbreakMessagesService.getMessage(AMBARI_CLUSTER_SERVICES_STOPPING.code()));
+                int requestId = ambariClient.stopAllServices();
+                if (requestId != -1) {
+                    LOGGER.debug("Waiting for Hadoop services to stop on stack");
+                    PollingResult servicesStopResult = ambariOperationService.waitForOperations(stack, ambariClient, singletonMap("stop services", requestId),
+                            STOP_AMBARI_PROGRESS_STATE).getLeft();
+                    if (isExited(servicesStopResult)) {
+                        throw new CancellationException("Cluster was terminated while waiting for Hadoop services to start");
+                    } else if (isTimeout(servicesStopResult)) {
+                        throw new CloudbreakException("Timeout while stopping Ambari services.");
+                    }
+                } else {
+                    LOGGER.debug("Failed to stop Hadoop services.");
+                    throw new CloudbreakException("Failed to stop Hadoop services.");
+                }
+                eventService
+                        .fireCloudbreakEvent(stack.getId(), UPDATE_IN_PROGRESS.name(),
+                                cloudbreakMessagesService.getMessage(AMBARI_CLUSTER_SERVICES_STOPPED.code()));
+            }
+        } catch (AmbariConnectionException ignored) {
+            LOGGER.debug("Ambari not running on the gateway machine, no need to stop it.");
+        }
+    }
+
+    @Override
+    public int startCluster(Set<HostMetadata> hostsInCluster) throws CloudbreakException {
+        PollingResult ambariHealthCheckResult = ambariPollingServiceProvider.ambariHealthChecker(stack, ambariClient);
+        if (isExited(ambariHealthCheckResult)) {
+            throw new CancellationException("Cluster was terminated while waiting for Ambari to start.");
+        } else if (isTimeout(ambariHealthCheckResult)) {
+            throw new CloudbreakException("Ambari server was not restarted properly.");
+        }
+        LOGGER.debug("Starting Ambari agents on the hosts.");
+        PollingResult hostsJoinedResult = ambariPollingServiceProvider.ambariHostJoin(stack, ambariClient, hostsInCluster);
+        if (isExited(hostsJoinedResult)) {
+            throw new CancellationException("Cluster was terminated while starting Ambari agents.");
+        }
+
+        LOGGER.debug("Start all Hadoop services");
+        eventService
+                .fireCloudbreakEvent(stack.getId(), UPDATE_IN_PROGRESS.name(), cloudbreakMessagesService.getMessage(AMBARI_CLUSTER_SERVICES_STARTING.code()));
+        int requestId = ambariClient.startAllServices();
+        if (requestId == -1) {
+            LOGGER.info("Failed to start Hadoop services.");
+            throw new CloudbreakException("Failed to start Hadoop services.");
+        }
+        return requestId;
+    }
+
+    @Override
+    public ClusterStatus getStatus(boolean blueprintPresent) {
+        return clusterStatusFactory.createClusterStatus(stack, clientConfig, blueprintPresent);
+    }
+
+    @Override
+    public Map<String, String> getComponentsByCategory(String blueprintName, String hostGroupName) {
+        return ambariClient.getComponentsCategory(blueprintName, hostGroupName);
+    }
+
+    private Map<String, Integer> installServices(List<String> hosts, Stack stack, AmbariClient ambariClient, HostGroup hostGroup,
+            List<InstanceMetaData> metas) {
+        try {
+            String blueprintName = stack.getCluster().getBlueprint().getAmbariName();
+            // In case If we changed the blueprintName field we need to query the validation name information from ambari
+            Map<String, String> blueprintsMap = ambariClient.getBlueprintsMap();
+            if (!blueprintsMap.entrySet().isEmpty()) {
+                blueprintName = blueprintsMap.keySet().iterator().next();
+            }
+            List<Map<String, String>> hostGroupAssociation = hostGroupAssociationBuilder.buildHostGroupAssociation(hostGroup, metas);
+            Map<String, String> hostsWithRackInfo = hostGroupAssociation.stream()
+                    .filter(associationMap -> hosts.stream().anyMatch(host -> host.equals(associationMap.get(FQDN))))
+                    .collect(Collectors.toMap(association -> association.get(FQDN), association ->
+                            association.get("rack") != null ? association.get("rack") : "/default-rack"));
+            int upscaleRequestCode = ambariClient.addHostsAndRackInfoWithBlueprint(blueprintName, hostGroup.getName(), hostsWithRackInfo);
+            return singletonMap("UPSCALE_REQUEST", upscaleRequestCode);
+        } catch (HttpResponseException e) {
+            if ("Conflict".equals(e.getMessage())) {
+                throw new AmbariServiceException("Host already exists.", e);
+            } else {
+                String errorMessage = AmbariClientExceptionUtil.getErrorMessage(e);
+                throw new CloudbreakServiceException("Ambari could not install services. " + errorMessage, e);
+            }
+        }
+    }
+
+    public String getStackRepositoryJson(StackRepoDetails repoDetails, String stackRepoId) {
+        try {
+            String osType = ambariRepositoryVersionService.getOsTypeForStackRepoDetails(repoDetails);
+            if ("".equals(osType)) {
+                LOGGER.debug(String.format("The stored HDP repo details (%s) do not contain OS information for stack '%s'.", repoDetails, stack.getName()));
+                return null;
+            }
+
+            String stackRepositoryJson = ambariClient.getLatestStackRepositoryAsJson(stack.getCluster().getName(), osType, stackRepoId);
+            if (stackRepositoryJson == null) {
+                throw new AmbariServiceException(String.format("Stack Repository response coming from Ambari server was null "
+                        + "for cluster '%s' and repo url '%s'.", stack.getCluster().getName(), stackRepoId));
+            }
+            return stackRepositoryJson;
+        } catch (HttpResponseException e) {
+            if ("Not Found".equals(e.getMessage())) {
+                throw new AmbariNotFoundException("Ambari validation not found.", e);
+            } else {
+                String errorMessage = AmbariClientExceptionUtil.getErrorMessage(e);
+                throw new CloudbreakServiceException("Could not get Stack Repository from Ambari as JSON: " + errorMessage, e);
+            }
+        }
+    }
+
+}

@@ -1,32 +1,26 @@
 package com.sequenceiq.cloudbreak.service.cluster;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
-import com.sequenceiq.cloudbreak.service.cluster.api.ClusterApi;
+import com.sequenceiq.cloudbreak.client.HttpClientConfig;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterApi;
+import com.sequenceiq.cloudbreak.domain.stack.Stack;
+import com.sequenceiq.cloudbreak.service.TlsSecurityService;
 
 @Service
 public class ClusterApiConnectors {
 
-    private final Map<String, ClusterApi> map = new HashMap<>();
+    @Inject
+    private ApplicationContext applicationContext;
 
     @Inject
-    private List<ClusterApi> connectors;
+    private TlsSecurityService tlsSecurityService;
 
-    @PostConstruct
-    public void connectors() {
-        for (ClusterApi connector : connectors) {
-            map.put(connector.clusterVariant(), connector);
-        }
-    }
-
-    public ClusterApi getConnector(String variant) {
-        return map.get(variant);
+    public ClusterApi getConnector(Stack stack) {
+        HttpClientConfig httpClientConfig = tlsSecurityService.buildTLSClientConfigForPrimaryGateway(stack.getId(), stack.getAmbariIp());
+        return (ClusterApi) applicationContext.getBean(stack.getCluster().getVariant(), stack, httpClientConfig);
     }
 }

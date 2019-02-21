@@ -31,9 +31,9 @@ import com.sequenceiq.cloudbreak.domain.workspace.User;
 import com.sequenceiq.cloudbreak.domain.workspace.UserPreferences;
 import com.sequenceiq.cloudbreak.domain.workspace.Workspace;
 import com.sequenceiq.cloudbreak.service.CloudbreakServiceException;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariClientProvider;
+import com.sequenceiq.cloudbreak.ambari.AmbariClientProvider;
 import com.sequenceiq.cloudbreak.service.sharedservice.ServiceDescriptorDefinitionProvider;
-import com.sequenceiq.cloudbreak.service.stack.connector.OperationException;
+import com.sequenceiq.cloudbreak.service.OperationException;
 import com.sequenceiq.cloudbreak.service.user.UserPreferencesService;
 
 import reactor.bus.EventBus;

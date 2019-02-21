@@ -2,14 +2,19 @@ package com.sequenceiq.cloudbreak.service.cluster.clouderamanager;
 
 import javax.inject.Inject;
 
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
-import com.sequenceiq.cloudbreak.service.cluster.api.ClusterApi;
-import com.sequenceiq.cloudbreak.service.cluster.api.ClusterModificationService;
-import com.sequenceiq.cloudbreak.service.cluster.api.ClusterSecurityService;
-import com.sequenceiq.cloudbreak.service.cluster.api.ClusterSetupService;
+import com.sequenceiq.cloudbreak.client.HttpClientConfig;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterApi;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterModificationService;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterSecurityService;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterSetupService;
+import com.sequenceiq.cloudbreak.domain.stack.Stack;
+import com.sequenceiq.cloudbreak.domain.stack.cluster.Cluster;
 
-@Service
+@Service(ClusterApi.CLOUDERA_MANAGER)
+@Scope("prototype")
 public class ClouderaManagerConnector implements ClusterApi {
 
     @Inject
@@ -20,6 +25,15 @@ public class ClouderaManagerConnector implements ClusterApi {
 
     @Inject
     private ClouderaManagerSecurityService clouderaManagerSecurityService;
+
+    private final Stack stack;
+
+    private final HttpClientConfig clientConfig;
+
+    public ClouderaManagerConnector(Stack stack, HttpClientConfig clientConfig) {
+        this.stack = stack;
+        this.clientConfig = clientConfig;
+    }
 
     @Override
     public ClusterSetupService clusterSetupService() {
@@ -34,10 +48,5 @@ public class ClouderaManagerConnector implements ClusterApi {
     @Override
     public ClusterSecurityService clusterSecurityService() {
         return clouderaManagerSecurityService;
-    }
-
-    @Override
-    public String clusterVariant() {
-        return "CLOUDERA_MANAGER";
     }
 }

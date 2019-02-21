@@ -1,10 +1,10 @@
 package com.sequenceiq.cloudbreak.service.cluster.ambari;
 
-import static com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariMessages.AMBARI_CLUSTER_DISABLE_KERBEROS_FAILED;
-import static com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariMessages.AMBARI_CLUSTER_PREPARE_DEKERBERIZING_ERROR;
-import static com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariMessages.AMBARI_CLUSTER_PREPARE_DEKERBERIZING_FAILED;
-import static com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariOperationType.DISABLE_KERBEROS_STATE;
-import static com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariOperationType.PREPARE_DEKERBERIZING;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_DISABLE_KERBEROS_FAILED;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_PREPARE_DEKERBERIZING_ERROR;
+import static com.sequenceiq.cloudbreak.ambari.AmbariMessages.AMBARI_CLUSTER_PREPARE_DEKERBERIZING_FAILED;
+import static com.sequenceiq.cloudbreak.ambari.AmbariOperationType.DISABLE_KERBEROS_STATE;
+import static com.sequenceiq.cloudbreak.ambari.AmbariOperationType.PREPARE_DEKERBERIZING;
 import static java.util.Collections.singletonMap;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -30,15 +30,21 @@ import org.mockito.junit.MockitoJUnitRunner;
 import com.sequenceiq.ambari.client.AmbariClient;
 import com.sequenceiq.ambari.client.AmbariConnectionException;
 import com.sequenceiq.cloudbreak.TestUtil;
+import com.sequenceiq.cloudbreak.ambari.AmbariClientFactory;
+import com.sequenceiq.cloudbreak.ambari.AmbariClusterSecurityService;
+import com.sequenceiq.cloudbreak.ambari.AmbariOperationFailedException;
+import com.sequenceiq.cloudbreak.ambari.AmbariPollingServiceProvider;
+import com.sequenceiq.cloudbreak.ambari.AmbariSecurityConfigProvider;
+import com.sequenceiq.cloudbreak.ambari.AmbariUserHandler;
 import com.sequenceiq.cloudbreak.cloud.scheduler.CancellationException;
 import com.sequenceiq.cloudbreak.domain.stack.Stack;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.Cluster;
 import com.sequenceiq.cloudbreak.service.CloudbreakException;
-import com.sequenceiq.cloudbreak.service.PollingResult;
-import com.sequenceiq.cloudbreak.service.cluster.ClusterConnectorPollingResultChecker;
+import com.sequenceiq.cloudbreak.polling.PollingResult;
+import com.sequenceiq.cloudbreak.cluster.service.ClusterConnectorPollingResultChecker;
 import com.sequenceiq.cloudbreak.service.cluster.ClusterService;
-import com.sequenceiq.cloudbreak.service.cluster.flow.AmbariOperationService;
-import com.sequenceiq.cloudbreak.service.messages.CloudbreakMessagesService;
+import com.sequenceiq.cloudbreak.ambari.flow.AmbariOperationService;
+import com.sequenceiq.cloudbreak.message.CloudbreakMessagesService;
 
 @RunWith(MockitoJUnitRunner.class)
 public class AmbariClusterSecurityServiceTest {

@@ -6,6 +6,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.sequenceiq.cloudbreak.TestUtil;
+import com.sequenceiq.cloudbreak.ambari.AmbariSecurityConfigProvider;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.Cluster;
 
 public class AmbariSecurityConfigProviderTest {

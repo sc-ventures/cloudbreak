@@ -1,7 +1,7 @@
 package com.sequenceiq.cloudbreak.service.cluster.clouderamanager;
 
-import static com.sequenceiq.cloudbreak.service.PollingResult.isExited;
-import static com.sequenceiq.cloudbreak.service.PollingResult.isSuccess;
+import static com.sequenceiq.cloudbreak.polling.PollingResult.isExited;
+import static com.sequenceiq.cloudbreak.polling.PollingResult.isSuccess;
 
 import java.util.List;
 import java.util.Map;
@@ -19,18 +19,18 @@ import com.cloudera.api.swagger.client.ApiClient;
 import com.cloudera.api.swagger.model.ApiClusterTemplate;
 import com.cloudera.api.swagger.model.ApiCommand;
 import com.sequenceiq.cloudbreak.cloud.scheduler.CancellationException;
-import com.sequenceiq.cloudbreak.core.CloudbreakSecuritySetupException;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterSetupService;
 import com.sequenceiq.cloudbreak.core.bootstrap.service.container.postgres.PostgresConfigService;
 import com.sequenceiq.cloudbreak.domain.RDSConfig;
 import com.sequenceiq.cloudbreak.domain.stack.Stack;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.Cluster;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.host.HostGroup;
+import com.sequenceiq.cloudbreak.domain.stack.cluster.host.HostMetadata;
 import com.sequenceiq.cloudbreak.service.CloudbreakException;
-import com.sequenceiq.cloudbreak.service.PollingResult;
+import com.sequenceiq.cloudbreak.polling.PollingResult;
 import com.sequenceiq.cloudbreak.service.cluster.ClusterService;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariClusterCreationSuccessHandler;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariOperationFailedException;
-import com.sequenceiq.cloudbreak.service.cluster.api.ClusterSetupService;
+import com.sequenceiq.cloudbreak.service.cluster.ClusterCreationSuccessHandler;
+import com.sequenceiq.cloudbreak.ambari.AmbariOperationFailedException;
 import com.sequenceiq.cloudbreak.service.hostgroup.HostGroupService;
 
 @Service
@@ -57,7 +57,7 @@ public class ClouderaManagerSetupService implements ClusterSetupService {
     private ClouderaClusterTemplateGenerator clusterTemplateGenerator;
 
     @Inject
-    private AmbariClusterCreationSuccessHandler ambariClusterCreationSuccessHandler;
+    private ClusterCreationSuccessHandler clusterCreationSuccessHandler;
 
     @Inject
     private ConversionService conversionService;
@@ -103,8 +103,6 @@ public class ClouderaManagerSetupService implements ClusterSetupService {
             LOGGER.debug("Cloudera cluster template has been submitted, cluster install is in progress");
 
             clouderaManagerPollingServiceProvider.templateInstallCheckerService(stack, client, apiCommand.getId());
-
-            ambariClusterCreationSuccessHandler.handleClusterCreationSuccess(stack, cluster);
         } catch (CancellationException cancellationException) {
             throw cancellationException;
         } catch (Exception e) {
@@ -114,7 +112,7 @@ public class ClouderaManagerSetupService implements ClusterSetupService {
     }
 
     @Override
-    public void waitForHosts(Stack stack) throws CloudbreakSecuritySetupException {
+    public void waitForHosts(Stack stack, Set<HostMetadata> hostsInCluster) {
         clouderaManagerPollingServiceProvider.hostsPollingService(stack, clouderaManagerClientFactory.getDefaultClient(stack));
     }
 

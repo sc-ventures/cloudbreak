@@ -1,9 +1,10 @@
 package com.sequenceiq.cloudbreak.reactor;
 
-import static com.sequenceiq.cloudbreak.service.PollingResult.isSuccess;
+import static com.sequenceiq.cloudbreak.polling.PollingResult.isSuccess;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -16,16 +17,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import com.sequenceiq.cloudbreak.client.HttpClientConfig;
+import com.sequenceiq.cloudbreak.core.bootstrap.service.host.HostOrchestratorResolver;
 import com.sequenceiq.cloudbreak.domain.stack.Stack;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.host.HostGroup;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.host.HostMetadata;
 import com.sequenceiq.cloudbreak.domain.stack.instance.InstanceMetaData;
+import com.sequenceiq.cloudbreak.orchestrator.host.HostOrchestrator;
+import com.sequenceiq.cloudbreak.orchestrator.model.GatewayConfig;
 import com.sequenceiq.cloudbreak.reactor.api.event.EventSelectorUtil;
 import com.sequenceiq.cloudbreak.reactor.api.event.resource.DecommissionRequest;
 import com.sequenceiq.cloudbreak.reactor.api.event.resource.DecommissionResult;
 import com.sequenceiq.cloudbreak.reactor.handler.ReactorEventHandler;
-import com.sequenceiq.cloudbreak.service.PollingResult;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariDecommissioner;
+import com.sequenceiq.cloudbreak.repository.HostMetadataRepository;
+import com.sequenceiq.cloudbreak.service.GatewayConfigService;
+import com.sequenceiq.cloudbreak.polling.PollingResult;
+import com.sequenceiq.cloudbreak.service.TlsSecurityService;
+import com.sequenceiq.cloudbreak.ambari.AmbariDecommissioner;
 import com.sequenceiq.cloudbreak.service.cluster.flow.recipe.RecipeEngine;
 import com.sequenceiq.cloudbreak.service.hostgroup.HostGroupService;
 import com.sequenceiq.cloudbreak.service.stack.StackService;
@@ -53,6 +61,19 @@ public class DecommissionHandler implements ReactorEventHandler<DecommissionRequ
     @Inject
     private HostGroupService hostGroupService;
 
+    @Inject
+    private HostOrchestratorResolver hostOrchestratorResolver;
+
+    @Inject
+    private GatewayConfigService gatewayConfigService;
+
+    @Inject
+    private HostMetadataRepository hostMetadataRepository;
+
+    @Inject
+    private TlsSecurityService tlsSecurityService;
+
+
     @Override
     public String selector() {
         return EventSelectorUtil.selector(DecommissionRequest.class);
@@ -65,16 +86,23 @@ public class DecommissionHandler implements ReactorEventHandler<DecommissionRequ
         String hostGroupName = request.getHostGroupName();
         try {
             Stack stack = stackService.getByIdWithListsInTransaction(request.getStackId());
+            HttpClientConfig clientConfig = tlsSecurityService.buildTLSClientConfigForPrimaryGateway(stack.getId(), stack.getCluster().getAmbariIp());
             Set<String> hostNames = getHostNamesForPrivateIds(request, stack);
-            Map<String, HostMetadata> hostsToRemove = ambariDecommissioner.collectHostsToRemove(stack, hostGroupName, hostNames);
+            HostGroup hostGroup = hostGroupService.getByClusterIdAndName(stack.getCluster().getId(), hostGroupName);
+            Map<String, HostMetadata> hostsToRemove = ambariDecommissioner.collectHostsToRemove(stack, hostGroup, hostNames, clientConfig);
             Set<String> decomissionedHostNames;
             if (skipAmbariDecomission(request, hostsToRemove)) {
                 decomissionedHostNames = hostNames;
             } else {
                 executePreTerminationRecipes(stack, request.getHostGroupName(), hostsToRemove.keySet());
-                decomissionedHostNames = ambariDecommissioner.decommissionAmbariNodes(stack, hostsToRemove);
+                Set<HostMetadata> decomissionedHostMetadatas = ambariDecommissioner.decommissionAmbariNodes(stack, hostsToRemove, clientConfig);
+                decomissionedHostMetadatas.forEach(hostMetadata -> hostMetadataRepository.delete(hostMetadata));
+                decomissionedHostNames = decomissionedHostMetadatas.stream().map(HostMetadata::getHostName).collect(Collectors.toSet());
             }
-            PollingResult orchestratorRemovalPollingResult = ambariDecommissioner.removeHostsFromOrchestrator(stack, new ArrayList<>(decomissionedHostNames));
+            HostOrchestrator hostOrchestrator = hostOrchestratorResolver.get(stack.getOrchestrator().getType());
+            List<GatewayConfig> allGatewayConfigs = gatewayConfigService.getAllGatewayConfigs(stack);
+            PollingResult orchestratorRemovalPollingResult =
+                    ambariDecommissioner.removeHostsFromOrchestrator(stack, new ArrayList<>(decomissionedHostNames), hostOrchestrator, allGatewayConfigs);
             if (!isSuccess(orchestratorRemovalPollingResult)) {
                 LOGGER.debug("Can not remove hosts from orchestrator: {}", decomissionedHostNames);
             }

@@ -24,7 +24,7 @@ import com.sequenceiq.cloudbreak.domain.stack.cluster.ServiceDescriptorDefinitio
 import com.sequenceiq.cloudbreak.repository.cluster.DatalakeResourcesRepository;
 import com.sequenceiq.cloudbreak.repository.cluster.ServiceDescriptorRepository;
 import com.sequenceiq.cloudbreak.service.TransactionService;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariClientFactory;
+import com.sequenceiq.cloudbreak.ambari.AmbariClientFactory;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DatalakeConfigProviderTest {

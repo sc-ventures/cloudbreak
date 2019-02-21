@@ -10,6 +10,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import com.sequenceiq.cloudbreak.ambari.AmbariClusterConnector;
+import com.sequenceiq.cloudbreak.ambari.AmbariClusterModificationService;
+import com.sequenceiq.cloudbreak.ambari.AmbariClusterSecurityService;
+import com.sequenceiq.cloudbreak.ambari.AmbariClusterSetupService;
+
 @RunWith(MockitoJUnitRunner.class)
 public class AmbariClusterConnectorTest {
 

@@ -30,6 +30,7 @@ import com.sequenceiq.cloudbreak.domain.KerberosConfig;
 import com.sequenceiq.cloudbreak.domain.LdapConfig;
 import com.sequenceiq.cloudbreak.domain.RDSConfig;
 import com.sequenceiq.cloudbreak.domain.SmartSenseSubscription;
+import com.sequenceiq.cloudbreak.domain.stack.Stack;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.DatalakeResources;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.gateway.Gateway;
 import com.sequenceiq.cloudbreak.domain.view.EnvironmentView;
@@ -38,7 +39,8 @@ import com.sequenceiq.cloudbreak.domain.workspace.Workspace;
 import com.sequenceiq.cloudbreak.service.CloudbreakRestRequestThreadLocalService;
 import com.sequenceiq.cloudbreak.service.CloudbreakServiceException;
 import com.sequenceiq.cloudbreak.service.blueprint.BlueprintService;
-import com.sequenceiq.cloudbreak.service.cluster.ambari.AmbariClientFactory;
+import com.sequenceiq.cloudbreak.ambari.AmbariClientFactory;
+import com.sequenceiq.cloudbreak.service.credential.CredentialPrerequisiteService;
 import com.sequenceiq.cloudbreak.service.credential.CredentialService;
 import com.sequenceiq.cloudbreak.service.datalake.DatalakeResourcesService;
 import com.sequenceiq.cloudbreak.service.environment.EnvironmentViewService;
@@ -47,6 +49,7 @@ import com.sequenceiq.cloudbreak.service.kerberos.KerberosService;
 import com.sequenceiq.cloudbreak.service.ldapconfig.LdapConfigService;
 import com.sequenceiq.cloudbreak.service.rdsconfig.RdsConfigService;
 import com.sequenceiq.cloudbreak.service.sharedservice.DatalakeConfigProvider;
+import com.sequenceiq.cloudbreak.service.stack.StackService;
 import com.sequenceiq.cloudbreak.service.user.UserService;
 import com.sequenceiq.cloudbreak.service.workspace.WorkspaceService;
 import com.sequenceiq.cloudbreak.template.BlueprintProcessingException;
@@ -114,6 +117,12 @@ public class StackV4RequestToTemplatePreparationObjectConverter extends Abstract
     @Inject
     private DatalakeResourcesService datalakeResourcesService;
 
+    @Inject
+    private CredentialPrerequisiteService credentialPrerequisiteService;
+
+    @Inject
+    private StackService stackService;
+
     @Override
     public TemplatePreparationObject convert(StackV4Request source) {
         try {
@@ -161,7 +170,7 @@ public class StackV4RequestToTemplatePreparationObjectConverter extends Abstract
             if (sharedService != null && StringUtils.isNotBlank(sharedService.getDatalakeName())) {
                 DatalakeResources datalakeResource = datalakeResourcesService.getByNameForWorkspace(source.getSharedService().getDatalakeName(), workspace);
                 if (datalakeResource != null) {
-                    AmbariClient datalakeAmbariClient = ambariClientFactory.getAmbariClient(datalakeResource, credential);
+                    AmbariClient datalakeAmbariClient = getAmbariClient(datalakeResource, credential);
                     SharedServiceConfigsView sharedServiceConfigsView = datalakeConfigProvider.createSharedServiceConfigView(datalakeResource);
                     Map<String, String> blueprintConfigParams =
                             datalakeConfigProvider.getBlueprintConfigParameters(datalakeResource, blueprint, datalakeAmbariClient);
@@ -176,6 +185,17 @@ public class StackV4RequestToTemplatePreparationObjectConverter extends Abstract
             return builder.build();
         } catch (BlueprintProcessingException | IOException e) {
             throw new CloudbreakServiceException(e.getMessage(), e);
+        }
+    }
+
+    public AmbariClient getAmbariClient(DatalakeResources datalakeResources, Credential credential) {
+        if (datalakeResources.getDatalakeStackId() != null) {
+            Stack datalakeStack = stackService.getById(datalakeResources.getDatalakeStackId());
+            return ambariClientFactory.getAmbariClient(datalakeStack, datalakeStack.getCluster());
+        } else if (credentialPrerequisiteService.isCumulusCredential(credential.getAttributes())) {
+            return credentialPrerequisiteService.createCumulusAmbariClient(credential.getAttributes());
+        } else {
+            throw new CloudbreakServiceException("Can not create Ambari Clientas there is no Datalake Stack and the credential is not for Cumulus");
         }
     }
 

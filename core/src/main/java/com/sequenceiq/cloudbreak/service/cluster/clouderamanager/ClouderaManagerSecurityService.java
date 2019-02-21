@@ -18,7 +18,7 @@ import com.cloudera.api.swagger.model.ApiUser2List;
 import com.sequenceiq.cloudbreak.domain.stack.Stack;
 import com.sequenceiq.cloudbreak.domain.stack.cluster.Cluster;
 import com.sequenceiq.cloudbreak.service.CloudbreakException;
-import com.sequenceiq.cloudbreak.service.cluster.api.ClusterSecurityService;
+import com.sequenceiq.cloudbreak.cluster.api.ClusterSecurityService;
 
 @Service
 public class ClouderaManagerSecurityService implements ClusterSecurityService {
